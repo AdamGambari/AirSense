@@ -8,8 +8,14 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://hbthfbdpxbmhbeizbqia.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhidGhmYmRweGJtaGJlaXpicWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk2MTg1MTgsImV4cCI6MjA3NTE5NDUxOH0.z_T6iBs1taUKaK4QxLKQA3lcAPiEEkOQA_2B6r86_aw")
 
-# Initialize Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Initialize Supabase client (optional)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Supabase client initialized successfully")
+except Exception as e:
+    print(f"⚠️ Supabase client initialization failed: {e}")
+    print("📝 Running in offline mode - data will not be persisted to database")
+    supabase = None
 
 def get_supabase_client() -> Client:
     """Get Supabase client instance"""
@@ -65,6 +71,9 @@ CREATE TABLE IF NOT EXISTS users (
 
 def initialize_database():
     """Initialize database tables"""
+    if not supabase:
+        print("⚠️ Database not available - skipping initialization")
+        return False
     try:
         # Execute schema creation
         result = supabase.rpc('exec_sql', {'sql': AIR_QUALITY_TABLE})
@@ -77,6 +86,9 @@ def initialize_database():
 def insert_air_quality_data(sensor_id: str, pm25: float, pm10: float, co2: float, 
                            temperature: float, humidity: float, aqi: int, location: str):
     """Insert new air quality data"""
+    if not supabase:
+        print("⚠️ Database not available - data not persisted")
+        return None
     try:
         data = {
             "sensor_id": sensor_id,
@@ -97,6 +109,8 @@ def insert_air_quality_data(sensor_id: str, pm25: float, pm10: float, co2: float
 
 def get_latest_air_quality(sensor_id: str = None):
     """Get latest air quality data"""
+    if not supabase:
+        return []
     try:
         query = supabase.table("air_quality_data").select("*").order("timestamp", desc=True).limit(1)
         
@@ -111,6 +125,8 @@ def get_latest_air_quality(sensor_id: str = None):
 
 def get_historical_air_quality(sensor_id: str, hours: int = 24):
     """Get historical air quality data"""
+    if not supabase:
+        return []
     try:
         from datetime import datetime, timedelta
         

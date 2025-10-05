@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirSense Client Data Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .sensor-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f9f9f9;
+        }
+        .metric {
+            display: inline-block;
+            margin: 5px 15px 5px 0;
+            padding: 5px 10px;
+            background: #e3f2fd;
+            border-radius: 4px;
+        }
+        .aqi {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .client-mode { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎭 AirSense Client-Side Data Generator Test</h1>
+        
+        <div id="status" class="status disconnected">
+            Status: Not Connected
+        </div>
+        
+        <div id="sensors">
+            <p>Loading sensor data...</p>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <button onclick="startTest()">Start Client Data Generation</button>
+            <button onclick="stopTest()">Stop</button>
+            <button onclick="generateAlert()">Generate Test Alert</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Simulate the client data generator
+        class ClientDataGenerator {
+            constructor() {
+                this.isRunning = false;
+                this.intervalId = null;
+                this.listeners = [];
+                this.sensors = [
+                    { id: "sensor_001", location: "Downtown Station" },
+                    { id: "sensor_002", location: "Suburban Station" },
+                    { id: "sensor_003", location: "Industrial Zone" }
+                ];
+                this.baseTime = Date.now();
+            }
+
+            start(interval = 10000) {
+                if (this.isRunning) return;
+                
+                this.isRunning = true;
+                console.log('🎭 Starting client-side data generator');
+                
+                this.generateAndBroadcastData();
+                
+                this.intervalId = setInterval(() => {
+                    this.generateAndBroadcastData();
+                }, interval);
+            }
+
+            stop() {
+                if (!this.isRunning) return;
+                
+                this.isRunning = false;
+                if (this.intervalId) {
+                    clearInterval(this.intervalId);
+                    this.intervalId = null;
+                }
+                console.log('🛑 Client-side data generator stopped');
+            }
+
+            generateAndBroadcastData() {
+                const currentTime = Date.now();
+                const timeOffset = (currentTime - this.baseTime) / 1000;
+                
+                const sensorData = {};
+                
+                this.sensors.forEach(sensor => {
+                    const sensorOffset = this.hashCode(sensor.id) % 100;
+                    const sensorTime = timeOffset + sensorOffset;
+                    
+                    const pm25 = this.roundTo(8 + (sensorTime % 25) + (sensorTime % 10) * 0.5, 1);
+                    const pm10 = this.roundTo(pm25 * 1.7 + (sensorTime % 5), 1);
+                    const co2 = Math.round(420 + (sensorTime % 150) + (sensorTime % 20));
+                    
+                    let temperature;
+                    if (sensor.location.includes("Downtown")) {
+                        temperature = this.roundTo(22 + (sensorTime % 8) - 4 + (sensorTime % 3), 1);
+                    } else {
+                        temperature = this.roundTo(20 + (sensorTime % 6) - 3 + (sensorTime % 2), 1);
+                    }
+                    
+                    const humidity = this.roundTo(55 + (sensorTime % 25) + (sensorTime % 7), 1);
+                    const pressure = this.roundTo(1013 + (sensorTime % 20) - 10, 1);
+                    const aqi = this.calculateAQI(pm25);
+                    
+                    sensorData[sensor.id] = {
+                        sensor_id: sensor.id,
+                        location: sensor.location,
+                        pm25: pm25,
+                        pm10: pm10,
+                        co2: co2,
+                        temperature: temperature,
+                        humidity: humidity,
+                        pressure: pressure,
+                        aqi: aqi,
+                        timestamp: new Date().toISOString()
+                    };
+                });
+                
+                this.broadcastSensorData(sensorData);
+            }
+
+            calculateAQI(pm25) {
+                if (pm25 <= 12.0) {
+                    return Math.round((pm25 / 12.0) * 50);
+                } else if (pm25 <= 35.4) {
+                    return Math.round(50 + ((pm25 - 12.1) / 23.3) * 50);
+                } else if (pm25 <= 55.4) {
+                    return Math.round(100 + ((pm25 - 35.5) / 19.9) * 50);
+                } else {
+                    return Math.round(150 + ((pm25 - 55.5) / 94.9) * 100);
+                }
+            }
+
+            roundTo(num, decimals) {
+                return Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals);
+            }
+
+            hashCode(str) {
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                }
+                return Math.abs(hash);
+            }
+
+            addListener(callback) {
+                this.listeners.push(callback);
+            }
+
+            broadcastSensorData(sensorData) {
+                this.listeners.forEach(callback => {
+                    try {
+                        callback(sensorData);
+                    } catch (error) {
+                        console.error('Error in callback:', error);
+                    }
+                });
+            }
+
+            generateAlert(sensorId, message, severity = 'moderate') {
+                const alert = {
+                    id: `alert_${Date.now()}`,
+                    sensor_id: sensorId,
+                    type: 'client_generated',
+                    message: message,
+                    severity: severity,
+                    timestamp: new Date().toISOString(),
+                    active: true
+                };
+                
+                this.broadcastAlert(alert);
+            }
+
+            broadcastAlert(alert) {
+                this.listeners.forEach(callback => {
+                    try {
+                        if (callback.name === 'onAlert' || callback.toString().includes('alert')) {
+                            callback(alert);
+                        }
+                    } catch (error) {
+                        console.error('Error in alert callback:', error);
+                    }
+                });
+            }
+        }
+
+        // Initialize
+        const dataGenerator = new ClientDataGenerator();
+        let currentSensorData = {};
+
+        // Update status
+        function updateStatus(status, className) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = `Status: ${status}`;
+            statusEl.className = `status ${className}`;
+        }
+
+        // Update sensor display
+        function updateSensorDisplay() {
+            const sensorsEl = document.getElementById('sensors');
+            
+            if (Object.keys(currentSensorData).length === 0) {
+                sensorsEl.innerHTML = '<p>No sensor data available</p>';
+                return;
+            }
+
+            let html = '';
+            Object.entries(currentSensorData).forEach(([sensorId, data]) => {
+                html += `
+                    <div class="sensor-card">
+                        <h3>${data.location} (${sensorId})</h3>
+                        <div class="metric aqi" style="color: ${getAQIColor(data.aqi)}">AQI: ${data.aqi}</div>
+                        <div class="metric">PM2.5: ${data.pm25} μg/m³</div>
+                        <div class="metric">PM10: ${data.pm10} μg/m³</div>
+                        <div class="metric">CO2: ${data.co2} ppm</div>
+                        <div class="metric">Temp: ${data.temperature}°C</div>
+                        <div class="metric">Humidity: ${data.humidity}%</div>
+                        <div class="metric">Pressure: ${data.pressure} hPa</div>
+                        <small>Updated: ${new Date(data.timestamp).toLocaleTimeString()}</small>
+                    </div>
+                `;
+            });
+            sensorsEl.innerHTML = html;
+        }
+
+        function getAQIColor(aqi) {
+            if (aqi <= 50) return '#4caf50';
+            if (aqi <= 100) return '#ff9800';
+            if (aqi <= 150) return '#f44336';
+            return '#9c27b0';
+        }
+
+        // Set up data listener
+        dataGenerator.addListener((data) => {
+            currentSensorData = data;
+            updateSensorDisplay();
+            console.log('📊 Received sensor data:', data);
+        });
+
+        // Global functions for buttons
+        window.startTest = function() {
+            dataGenerator.start(5000); // 5 second intervals for testing
+            updateStatus('Client Mode Active', 'client-mode');
+        };
+
+        window.stopTest = function() {
+            dataGenerator.stop();
+            updateStatus('Stopped', 'disconnected');
+        };
+
+        window.generateAlert = function() {
+            const sensors = ['sensor_001', 'sensor_002', 'sensor_003'];
+            const sensorId = sensors[Math.floor(Math.random() * sensors.length)];
+            const messages = [
+                'PM2.5 levels above 25 μg/m³',
+                'High temperature detected',
+                'Unusual humidity levels',
+                'Air quality alert'
+            ];
+            const message = messages[Math.floor(Math.random() * messages.length)];
+            
+            dataGenerator.generateAlert(sensorId, message);
+            console.log('🚨 Generated alert:', { sensorId, message });
+        };
+
+        // Initialize
+        updateStatus('Ready', 'disconnected');
+    </script>
+</body>
+</html>

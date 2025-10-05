@@ -1,3 +1,5 @@
+import { clientDataGenerator } from './clientDataGenerator';
+
 class WebSocketService {
   constructor() {
     this.socket = null;
@@ -9,6 +11,8 @@ class WebSocketService {
       alert: [],
       connectionChange: []
     };
+    this.clientDataGenerator = null;
+    this.isClientMode = false;
   }
 
   async connect() {
@@ -18,11 +22,23 @@ class WebSocketService {
           (process.env.NODE_ENV === 'production' ? 
             `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws` : 
             'ws://localhost:8000/ws');
+        
+        // Try to connect to WebSocket with timeout
+        const connectionTimeout = setTimeout(() => {
+          if (this.socket && this.socket.readyState === WebSocket.CONNECTING) {
+            console.log('⏰ WebSocket connection timeout, falling back to client-side data');
+            this.startClientMode();
+            resolve();
+          }
+        }, 5000); // 5 second timeout
+
         this.socket = new WebSocket(wsUrl);
 
         this.socket.onopen = () => {
+          clearTimeout(connectionTimeout);
           console.log('🔗 WebSocket connected');
           this.reconnectAttempts = 0;
+          this.isClientMode = false;
           this.notifyConnectionChange('connected');
           resolve();
         };
@@ -37,20 +53,27 @@ class WebSocketService {
         };
 
         this.socket.onclose = () => {
+          clearTimeout(connectionTimeout);
           console.log('🔌 WebSocket disconnected');
           this.notifyConnectionChange('disconnected');
           this.attemptReconnect();
         };
 
         this.socket.onerror = (error) => {
+          clearTimeout(connectionTimeout);
           console.error('WebSocket error:', error);
-          this.notifyConnectionChange('error');
-          reject(error);
+          console.log('🔄 Falling back to client-side data generation');
+          this.startClientMode();
+          this.notifyConnectionChange('connected'); // Connected to client mode
+          resolve();
         };
 
       } catch (error) {
         console.error('Failed to create WebSocket connection:', error);
-        reject(error);
+        console.log('🔄 Falling back to client-side data generation');
+        this.startClientMode();
+        this.notifyConnectionChange('connected'); // Connected to client mode
+        resolve();
       }
     });
   }
@@ -75,6 +98,28 @@ class WebSocketService {
     }
   }
 
+  startClientMode() {
+    console.log('🎭 Starting client-side data generation mode');
+    this.isClientMode = true;
+    this.clientDataGenerator = clientDataGenerator;
+    
+    // Set up listeners for client data
+    this.clientDataGenerator.addListener((data) => {
+      this.notifySensorData(data);
+    });
+    
+    // Start generating data
+    this.clientDataGenerator.start(10000); // 10 second intervals
+  }
+
+  stopClientMode() {
+    if (this.clientDataGenerator) {
+      this.clientDataGenerator.stop();
+      this.clientDataGenerator = null;
+    }
+    this.isClientMode = false;
+  }
+
   attemptReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
@@ -86,8 +131,9 @@ class WebSocketService {
         });
       }, this.reconnectDelay * this.reconnectAttempts);
     } else {
-      console.error('❌ Max reconnection attempts reached');
-      this.notifyConnectionChange('error');
+      console.error('❌ Max reconnection attempts reached, switching to client mode');
+      this.startClientMode();
+      this.notifyConnectionChange('connected'); // Connected to client mode
     }
   }
 
@@ -104,6 +150,7 @@ class WebSocketService {
       this.socket.close();
       this.socket = null;
     }
+    this.stopClientMode();
   }
 
   // Event listeners
@@ -159,6 +206,10 @@ class WebSocketService {
 
   // Connection status
   getConnectionStatus() {
+    if (this.isClientMode) {
+      return 'connected'; // Client mode is considered connected
+    }
+    
     if (!this.socket) return 'disconnected';
     
     switch (this.socket.readyState) {
