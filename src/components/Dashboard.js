@@ -190,7 +190,7 @@ const Dashboard = ({ sensorData, alerts }) => {
           </div>
           <div className="stat-content">
             <span className="stat-value">
-              {Object.values(sensorData).reduce((avg, data) => avg + data.aqi, 0) / Object.keys(sensorData).length || 0}
+              {Math.round(Object.values(sensorData).reduce((avg, data) => avg + data.aqi, 0) / Object.keys(sensorData).length || 0)}
             </span>
             <span className="stat-label">Average AQI</span>
           </div>
@@ -202,7 +202,7 @@ const Dashboard = ({ sensorData, alerts }) => {
           </div>
           <div className="stat-content">
             <span className="stat-value">
-              {Object.values(sensorData).reduce((avg, data) => avg + data.temperature, 0) / Object.keys(sensorData).length || 0}°C
+              {(Object.values(sensorData).reduce((avg, data) => avg + data.temperature, 0) / Object.keys(sensorData).length || 0).toFixed(1)}°C
             </span>
             <span className="stat-label">Avg Temperature</span>
           </div>
